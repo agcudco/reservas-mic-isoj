@@ -1,0 +1,14 @@
+# Node.js
+node_modules/
+dist/
+.env
+
+# Java
+*.class
+.mvn/
+target/
+
+# General
+.idea/
+.vscode/
+*.log
