@@ -1,5 +1,3 @@
-import { Evento } from 'src/evento/entities/evento.entity';
-import { Seccion } from 'src/seccion/entities/seccion.entity';
 import {
   Column,
   Entity,
@@ -7,6 +5,8 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { Evento } from '../../evento/entities/evento.entity';
+import { Seccion } from '../../seccion/entities/seccion.entity';
 
 @Entity()
 export class Escenario {
@@ -25,7 +25,7 @@ export class Escenario {
   @Column({ type: 'int', default: 0 })
   capacidad!: number;
 
-  @OneToOne(() => Evento, (evento) => evento.escenario)
+  @OneToOne(() => Evento, (evento: Evento) => evento.escenario)
   evento!: Evento;
 
   @OneToMany(() => Seccion, (seccion) => seccion.escenario)

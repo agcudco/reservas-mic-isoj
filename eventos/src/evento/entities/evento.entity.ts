@@ -1,4 +1,3 @@
-import { Escenario } from 'src/escenario/entities/escenario.entity';
 import {
   Column,
   Entity,
@@ -6,6 +5,7 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { Escenario } from '../../escenario/entities/escenario.entity';
 
 @Entity()
 export class Evento {
@@ -24,7 +24,7 @@ export class Evento {
   @Column({ type: 'time', nullable: false })
   hora!: string;
 
-  @OneToOne(() => Escenario, (escenario) => escenario.evento)
+  @OneToOne(() => Escenario, (escenario: Escenario) => escenario.evento)
   @JoinColumn()
   escenario!: Escenario;
 }

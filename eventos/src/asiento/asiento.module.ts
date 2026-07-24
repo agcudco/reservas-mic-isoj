@@ -1,9 +1,14 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AsientoService } from './asiento.service';
 import { AsientoController } from './asiento.controller';
+import { Asiento } from './entities/asiento.entity';
+import { Fila } from '../fila/entities/fila.entity';
 
 @Module({
-  controllers: [AsientoController],
+  imports: [TypeOrmModule.forFeature([Asiento, Fila])],
+  controllers: [AsientoController], // ✅ Asegúrate de que esté aquí
   providers: [AsientoService],
+  exports: [AsientoService],
 })
 export class AsientoModule {}

@@ -2,17 +2,21 @@ version: "3.8"
 
 services:
   postgres:
-    image: postgres:16-alpine
-    container_name: auth-db
+    image: postgres:17-alpine               # Última versión estable LTS (17)
+    container_name: postgres-general
     restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: authdb                     # database name (must match application.yml)
-      POSTGRES_USER: postgres                 # database user
-      POSTGRES_PASSWORD: postgres             # database password
+      # Variables genéricas. Si no se define POSTGRES_DB,
+      # se crea automáticamente una base con el nombre del usuario (postgres).
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      # POSTGRES_DB:  # Eliminada para que no haya una base específica
     volumes:
-      - pgdata:/var/lib/postgresql/data       # persist data between container restarts
-
-volumes:
-  pgdata:
+      # Directorio de datos (persistencia real en el host)
+      - ./postgres-data:/var/lib/postgresql/data
+      # (Opcional) Directorio para ficheros de configuración personalizados
+      # - ./postgres-config:/etc/postgresql/conf.d
+      # (Opcional) Directorio para scripts de inicialización (solo se ejecutan si la BD está vacía)
+      # - ./init-scripts:/docker-entrypoint-initdb.d

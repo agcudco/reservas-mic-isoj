@@ -23,13 +23,13 @@ public class User {
 
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId
-    @JoinColumn(name = "id_person",referencedColumnName = "id")
+    @JoinColumn(name = "id_person", referencedColumnName = "id")
     private Person person;
 
     @Column(unique = true, nullable = false, length = 15)
     private String username;
 
-    @Column(name = "password_hash", nullable = false, length = 30)
+    @Column(name = "password_hash", nullable = false, length = 60)
     private String passwordHash;
 
     @Column(name = "last_login")
@@ -37,6 +37,10 @@ public class User {
 
     @Builder.Default
     private Boolean active = true;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Long tokenVersion = 0L;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -52,5 +56,6 @@ public class User {
     protected void OnCreate() {
         createdAt = LocalDateTime.now();
     }
+
 
 }

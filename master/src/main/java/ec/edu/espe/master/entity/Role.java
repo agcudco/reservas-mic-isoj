@@ -34,6 +34,13 @@ public class Role {
     @Builder.Default
     private Set<UserRole> userRoles = new HashSet<>();
 
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "role_module",
+            joinColumns = @JoinColumn(name = "role_id"),
+            inverseJoinColumns = @JoinColumn(name = "module_id"))
+    @Builder.Default
+    private Set<Module> modules = new HashSet<>();
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

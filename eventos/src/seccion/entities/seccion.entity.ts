@@ -1,5 +1,3 @@
-import { Escenario } from 'src/escenario/entities/escenario.entity';
-import { Fila } from 'src/fila/entities/fila.entity';
 import {
   Column,
   Entity,
@@ -7,12 +5,14 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { Escenario } from '../../escenario/entities/escenario.entity';
+import { Fila } from '../../fila/entities/fila.entity';
 
 export enum TipoSeccion {
   VIP = 'VIP',
   GENERAL = 'general',
   PALCO = 'palco',
-  TRUBUNA = 'tribuna',
+  TRIBUNAL = 'tribuna',
 }
 
 @Entity()
@@ -23,8 +23,8 @@ export class Seccion {
   @Column({ length: 255, nullable: false })
   nombre!: string;
 
-  @Column({ length: 255 })
-  descripcion!: string;
+  @Column({ length: 255, nullable: true })
+  descripcion?: string;
 
   @Column({ type: 'enum', enum: TipoSeccion, default: TipoSeccion.GENERAL })
   tipoSeccion!: TipoSeccion;
@@ -32,7 +32,9 @@ export class Seccion {
   @Column({ type: 'int', default: 0 })
   capacidad!: number;
 
-  @ManyToOne(() => Escenario, (escenario) => escenario.secciones)
+  @ManyToOne(() => Escenario, (escenario) => escenario.secciones, {
+    onDelete: 'CASCADE',
+  })
   escenario!: Escenario;
 
   @OneToMany(() => Fila, (fila) => fila.seccion)

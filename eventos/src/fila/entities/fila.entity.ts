@@ -1,5 +1,3 @@
-import { Asiento } from 'src/asiento/entities/asiento.entity';
-import { Seccion } from 'src/seccion/entities/seccion.entity';
 import {
   Column,
   Entity,
@@ -7,6 +5,8 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { Seccion } from '../../seccion/entities/seccion.entity';
+import { Asiento } from '../../asiento/entities/asiento.entity';
 
 @Entity()
 export class Fila {
@@ -19,9 +19,11 @@ export class Fila {
   @Column({ type: 'int', default: 0 })
   capacidad!: number;
 
-  @ManyToOne(() => Seccion, (seccion) => seccion.filas, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Seccion, (seccion: Seccion) => seccion.filas, {
+    onDelete: 'CASCADE',
+  })
   seccion!: Seccion;
 
-  @OneToMany(() => Asiento, (asiento) => asiento.fila)
+  @OneToMany(() => Asiento, (asiento: Asiento) => asiento.fila)
   asientos!: Asiento[];
 }

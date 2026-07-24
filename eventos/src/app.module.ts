@@ -6,6 +6,7 @@ import { EscenarioModule } from './escenario/escenario.module';
 import { SeccionModule } from './seccion/seccion.module';
 import { FilaModule } from './fila/fila.module';
 import { AsientoModule } from './asiento/asiento.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { AsientoModule } from './asiento/asiento.module';
     SeccionModule,
     FilaModule,
     AsientoModule,
+    AuthModule,
   ],
 })
 export class AppModule {}

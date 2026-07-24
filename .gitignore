@@ -1,14 +1,33 @@
-# Node.js
-node_modules/
-dist/
+# === DATOS DE BASE DE DATOS ===
+postgres-data/
+*.db
+*.sqlite
+
+# === JAVA / MAVEN ===
+**/target/
+**/.mvn/
+**/mvnw
+**/mvnw.cmd
+**/HELP.md
+*.jar
+*.war
+
+# === NODE / NESTJS ===
+**/node_modules/
+**/dist/
+**/build/
+**/coverage/
 .env
+.env.local
 
-# Java
-*.class
-.mvn/
-target/
+# === DOCKER ===
+.dockerignore
 
-# General
+# === IDE ===
 .idea/
 .vscode/
-*.log
+*.iml
+
+# === SISTEMA ===
+.DS_Store
+Thumbs.db

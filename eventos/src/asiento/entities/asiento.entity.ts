@@ -1,15 +1,15 @@
-import { Fila } from 'src/fila/entities/fila.entity';
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Fila } from '../../fila/entities/fila.entity';
 
 export enum EstadoAsiento {
   DISPONIBLE = 'disponible',
-  RESERVADO = 'reservado',
   OCUPADO = 'ocupado',
   MANTENIMIENTO = 'mantenimiento',
 }
 
 export enum TipoAsiento {
   NORMAL = 'normal',
+  VIP = 'vip',
   PREFERENCIAL = 'preferencial',
 }
 
@@ -18,11 +18,8 @@ export class Asiento {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ length: 12 })
-  nombre!: string; //A001-F10-GENE -> A002-F11-TRIB
-
-  @Column({ type: 'enum', enum: TipoAsiento, default: TipoAsiento.NORMAL })
-  tipo!: TipoAsiento;
+  @Column({ length: 10 })
+  numero!: string; // ✅ Propiedad definida
 
   @Column({
     type: 'enum',
@@ -30,6 +27,9 @@ export class Asiento {
     default: EstadoAsiento.DISPONIBLE,
   })
   estado!: EstadoAsiento;
+
+  @Column({ type: 'enum', enum: TipoAsiento, default: TipoAsiento.NORMAL })
+  tipo!: TipoAsiento;
 
   @ManyToOne(() => Fila, (fila) => fila.asientos, { onDelete: 'CASCADE' })
   fila!: Fila;

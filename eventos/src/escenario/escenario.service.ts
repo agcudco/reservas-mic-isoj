@@ -1,26 +1,49 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateEscenarioDto } from './dto/create-escenario.dto';
 import { UpdateEscenarioDto } from './dto/update-escenario.dto';
+import { Repository } from 'typeorm';
+import { Escenario } from './entities/escenario.entity';
+import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export class EscenarioService {
-  create(createEscenarioDto: CreateEscenarioDto) {
-    return 'This action adds a new escenario';
+  constructor(
+    @InjectRepository(Escenario)
+    private escenarioRepository: Repository<Escenario>,
+  ) {}
+
+  async create(createEscenarioDto: CreateEscenarioDto): Promise<Escenario> {
+    const escenario = this.escenarioRepository.create(createEscenarioDto);
+    return this.escenarioRepository.save(escenario);
   }
 
-  findAll() {
-    return `This action returns all escenario`;
+  async findAll(): Promise<Escenario[]> {
+    return this.escenarioRepository.find();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} escenario`;
+  async findOne(id: string): Promise<Escenario> {
+    const escenario = await this.escenarioRepository.findOne({
+      where: { id },
+    });
+
+    if (!escenario) {
+      throw new NotFoundException(`Escenario with id ${id} not found`);
+    }
+
+    return escenario;
   }
 
-  update(id: number, updateEscenarioDto: UpdateEscenarioDto) {
-    return `This action updates a #${id} escenario`;
+  async update(
+    id: string,
+    updateEscenarioDto: UpdateEscenarioDto,
+  ): Promise<Escenario> {
+    const escenario = await this.findOne(id);
+    Object.assign(escenario, updateEscenarioDto);
+    return this.escenarioRepository.save(escenario);
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} escenario`;
+  async remove(id: string): Promise<void> {
+    const escenario = await this.findOne(id);
+    await this.escenarioRepository.remove(escenario);
   }
 }
