@@ -6,9 +6,8 @@ on:
   pull_request:
     branches: [main, develop, master]
   schedule:
-    # Ejecutar análisis semanal (lunes a las 9:00 AM UTC)
     - cron: '0 9 * * 1'
-  workflow_dispatch:  # Ejecución manual
+  workflow_dispatch:
 
 jobs:
   analyze:
@@ -17,44 +16,66 @@ jobs:
     permissions:
       actions: read
       contents: read
-      security-events: write  # Necesario para subir resultados a Security tab
+      security-events: write
 
     strategy:
       fail-fast: false
       matrix:
-        # Lenguajes a analizar. CodeQL detecta automáticamente los disponibles.
-        # Ajusta según tu stack: cpp, csharp, go, java, javascript, python, ruby, swift, kotlin
-        language: [javascript, python]
-        # build-mode: autobuild (por defecto), manual, o none
+        include:
+          - language: javascript
+            build-mode: none
+          - language: java
+            build-mode: autobuild
 
     steps:
-      # 1. Checkout del código
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. Inicializar CodeQL
+      # --- Setup para JavaScript/TypeScript (NestJS) ---
+      - name: Set up Node.js
+        if: matrix.language == 'javascript'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        if: matrix.language == 'javascript'
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      # --- Setup para Java (Spring Boot) ---
+      - name: Set up JDK 21
+        if: matrix.language == 'java'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Maven packages
+        if: matrix.language == 'java'
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      # --- Inicializar CodeQL v4 ---
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
-          build-mode: autobuild
-          # queries: security-extended,security-and-quality  # Descomenta para análisis más profundo
-          # config-file: ./.github/codeql/codeql-config.yml  # Configuración personalizada
+          build-mode: ${{ matrix.build-mode }}
 
-      # 3. Autobuild (compilación automática) o build manual
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+      # --- Build manual para Java (fallback si autobuild falla) ---
+      - name: Build Java (Maven)
+        if: matrix.language == 'java' && matrix.build-mode == 'manual'
+        run: mvn clean package -DskipTests
 
-      # 3b. Build manual (alternativa al autobuild si falla)
-      # - name: Manual Build
-      #   run: |
-      #     npm ci
-      #     npm run build
-
-      # 4. Ejecutar análisis y subir resultados
+      # --- Análisis CodeQL ---
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
