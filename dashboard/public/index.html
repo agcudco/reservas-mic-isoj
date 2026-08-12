@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Asientos - Eventos</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <h1>📊 Monitoreo de Asientos</h1>
+    <div class="container">
+        <aside>
+            <h2>Selecciona un Evento</h2>
+            <select id="evento-select" size="5">
+                <option value="">Cargando eventos...</option>
+            </select>
+        </aside>
+        <main>
+            <div id="info-evento">
+                <h2 id="evento-nombre">Seleccione un evento</h2>
+                <p id="evento-fecha"></p>
+                <p id="evento-lugar"></p>
+            </div>
+            <div id="leyenda">
+                <span><span class="color-box" style="background:#28a745;"></span> Disponible</span>
+                <span><span class="color-box" style="background:#ffc107;"></span> Ocupado</span>
+                <span><span class="color-box" style="background:#dc3545;"></span> Mantenimiento</span>
+            </div>
+            <div id="asientos-grid"></div>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>

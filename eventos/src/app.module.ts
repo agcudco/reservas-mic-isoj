@@ -7,9 +7,12 @@ import { SeccionModule } from './seccion/seccion.module';
 import { FilaModule } from './fila/fila.module';
 import { AsientoModule } from './asiento/asiento.module';
 import { AuthModule } from './auth/auth.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { SseModule } from './sse/sse.module';
 
 @Module({
   imports: [
+    EventEmitterModule.forRoot(), // para eventos internos
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -32,6 +35,7 @@ import { AuthModule } from './auth/auth.module';
     FilaModule,
     AsientoModule,
     AuthModule,
+    SseModule,
   ],
 })
 export class AppModule {}
