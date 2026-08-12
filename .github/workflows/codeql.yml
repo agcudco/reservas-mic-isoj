@@ -17,6 +17,7 @@ jobs:
       actions: read
       contents: read
       security-events: write
+      pull-requests: write  # Para comentar en PRs
 
     strategy:
       fail-fast: false
@@ -93,3 +94,77 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
+
+      # --- Verificar vulnerabilidades y generar tabla ---
+      - name: Check for vulnerabilities
+        if: always()  # Corre aunque el análisis falle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "⏳ Esperando a que GitHub procese los resultados..."
+          sleep 30
+
+          REF="${{ github.ref }}"
+          REPO="${{ github.repository }}"
+          MAX_RETRIES=12
+          RETRY=0
+          ALERTS_JSON=""
+
+          while [ $RETRY -lt $MAX_RETRIES ]; do
+            RESPONSE=$(curl -s -H "Authorization: token $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/code-scanning/alerts?ref=$REF&state=open&per_page=100")
+
+            # Verificar si la respuesta es un array
+            if echo "$RESPONSE" | jq -e 'type == "array"' > /dev/null 2>&1; then
+              ALERTS_JSON="$RESPONSE"
+              break
+            fi
+
+            echo "   Reintento $((RETRY+1))/$MAX_RETRIES..."
+            sleep 15
+            RETRY=$((RETRY+1))
+          done
+
+          if [ -z "$ALERTS_JSON" ]; then
+            echo "⚠️ No se pudieron obtener resultados de la API en el tiempo esperado."
+            exit 0
+          fi
+
+          COUNT=$(echo "$ALERTS_JSON" | jq 'length')
+
+          # Filtrar solo alerts del lenguaje actual (por tool name)
+          LANGUAGE="${{ matrix.language }}"
+          FILTERED=$(echo "$ALERTS_JSON" | jq --raw-output --arg lang "$LANGUAGE" '
+            [.[] | select(.tool.name | ascii_downcase | contains($lang))]
+          ')
+          LANG_COUNT=$(echo "$FILTERED" | jq 'length')
+
+          echo ""
+          echo "╔════════════════════════════════════════════════════════════╗"
+          echo "║        RESULTADOS CODEQL - ${LANGUAGE^^}                            ║"
+          echo "╚════════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "Total alerts abiertos en este ref: $COUNT"
+          echo "Alerts del lenguaje '$LANGUAGE': $LANG_COUNT"
+          echo ""
+
+          if [ "$LANG_COUNT" -gt 0 ]; then
+            echo "| Severidad | Regla | Descripción | Archivo | Línea |"
+            echo "|-----------|-------|-------------|---------|-------|"
+
+            echo "$FILTERED" | jq -r '
+              .[] |
+              "| \(.rule.severity // "N/A") | \(.rule.id // "N/A") | \(.rule.description // "N/A") | \(.most_recent_instance.location.path // "N/A") | \(.most_recent_instance.location.start_line // "N/A") |"
+            '
+
+            echo ""
+            echo "❌ SE ENCONTRARON $LANG_COUNT VULNERABILIDAD(ES) EN ${LANGUAGE^^}"
+            echo "   El push será RECHAZADO."
+            echo ""
+            exit 1
+          else
+            echo "✅ No se encontraron vulnerabilidades en ${LANGUAGE^^}"
+            echo ""
+            exit 0
+          fi
