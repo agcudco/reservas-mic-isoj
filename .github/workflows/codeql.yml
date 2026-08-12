@@ -1,0 +1,60 @@
+name: CodeQL Security Analysis
+
+on:
+  push:
+    branches: [main, develop, master]
+  pull_request:
+    branches: [main, develop, master]
+  schedule:
+    # Ejecutar análisis semanal (lunes a las 9:00 AM UTC)
+    - cron: '0 9 * * 1'
+  workflow_dispatch:  # Ejecución manual
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write  # Necesario para subir resultados a Security tab
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Lenguajes a analizar. CodeQL detecta automáticamente los disponibles.
+        # Ajusta según tu stack: cpp, csharp, go, java, javascript, python, ruby, swift, kotlin
+        language: [javascript, python]
+        # build-mode: autobuild (por defecto), manual, o none
+
+    steps:
+      # 1. Checkout del código
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Inicializar CodeQL
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: autobuild
+          # queries: security-extended,security-and-quality  # Descomenta para análisis más profundo
+          # config-file: ./.github/codeql/codeql-config.yml  # Configuración personalizada
+
+      # 3. Autobuild (compilación automática) o build manual
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      # 3b. Build manual (alternativa al autobuild si falla)
+      # - name: Manual Build
+      #   run: |
+      #     npm ci
+      #     npm run build
+
+      # 4. Ejecutar análisis y subir resultados
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
