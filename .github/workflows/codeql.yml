@@ -25,7 +25,7 @@ jobs:
           - language: javascript
             build-mode: none
           - language: java
-            build-mode: autobuild
+            build-mode: manual
 
     steps:
       - name: Checkout repository
@@ -33,20 +33,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # --- Setup para JavaScript/TypeScript (NestJS) ---
-      - name: Set up Node.js
-        if: matrix.language == 'javascript'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install Node dependencies
-        if: matrix.language == 'javascript'
-        run: |
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
-
-      # --- Setup para Java (Spring Boot) ---
+      # --- Java Setup (Spring Boot en master/) ---
       - name: Set up JDK 21
         if: matrix.language == 'java'
         uses: actions/setup-java@v4
@@ -59,8 +46,25 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.m2
-          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          key: ${{ runner.os }}-m2-${{ hashFiles('master/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
+
+      # --- Node Setup (NestJS en eventos/, reservas/, dashboard/) ---
+      - name: Set up Node.js
+        if: matrix.language == 'javascript'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Node dependencies
+        if: matrix.language == 'javascript'
+        run: |
+          for dir in dashboard eventos reservas; do
+            if [ -f "$dir/package.json" ]; then
+              echo "Installing $dir..."
+              (cd "$dir" && npm ci)
+            fi
+          done
 
       # --- Inicializar CodeQL v4 ---
       - name: Initialize CodeQL
@@ -68,11 +72,21 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
+          config: |
+            paths-ignore:
+              - '**/node_modules/**'
+              - '**/dist/**'
+              - '**/build/**'
+              - '**/.angular/**'
+              - 'master/target/**'
 
-      # --- Build manual para Java (fallback si autobuild falla) ---
+      # --- Build manual Java (en master/) ---
       - name: Build Java (Maven)
         if: matrix.language == 'java' && matrix.build-mode == 'manual'
-        run: mvn clean package -DskipTests
+        working-directory: ./master
+        run: |
+          chmod +x mvnw
+          ./mvnw clean package -DskipTests
 
       # --- Análisis CodeQL ---
       - name: Perform CodeQL Analysis
