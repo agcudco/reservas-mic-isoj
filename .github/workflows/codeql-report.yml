@@ -1,0 +1,217 @@
+name: CodeQL Report
+
+on:
+  workflow_run:
+    workflows: ["CodeQL Security Analysis"]
+    types: [completed]
+    branches: [main, develop, master]
+
+permissions:
+  actions: read
+  contents: read
+  security-events: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  report:
+    name: Generar Reporte de Vulnerabilidades
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion != 'cancelled' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Extraer metadatos del workflow anterior
+        id: meta
+        run: |
+          echo "branch=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
+          echo "sha=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+          echo "run_id=${{ github.event.workflow_run.id }}" >> $GITHUB_OUTPUT
+          echo "run_url=${{ github.event.workflow_run.html_url }}" >> $GITHUB_OUTPUT
+          echo "conclusion=${{ github.event.workflow_run.conclusion }}" >> $GITHUB_OUTPUT
+
+      - name: Consultar vulnerabilidades (API GitHub)
+        id: alerts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          echo "⏳ Consultando alerts para ref: $SHA"
+          sleep 20
+
+          RESPONSE=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/code-scanning/alerts?ref=$SHA&state=open&per_page=100")
+
+          if ! echo "$RESPONSE" | jq -e 'type == "array"' > /dev/null 2>&1; then
+            echo "⚠️ La API no devolvió un array válido. Respuesta:"
+            echo "$RESPONSE"
+            echo "count=0" >> $GITHUB_OUTPUT
+            echo "has_alerts=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          COUNT=$(echo "$RESPONSE" | jq 'length')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "has_alerts=true" >> $GITHUB_OUTPUT
+            echo "$RESPONSE" > /tmp/codeql_alerts.json
+          else
+            echo "has_alerts=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generar reporte Markdown
+        id: generate
+        if: steps.alerts.outputs.has_alerts == 'true'
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          JSON_FILE="/tmp/codeql_alerts.json"
+          REPORT_FILE="/tmp/codeql_report.md"
+
+          # Contadores por severidad
+          CRITICAL=$(jq '[.[] | select(.rule.severity == "critical")] | length' $JSON_FILE)
+          HIGH=$(jq '[.[] | select(.rule.severity == "high")] | length' $JSON_FILE)
+          MEDIUM=$(jq '[.[] | select(.rule.severity == "medium")] | length' $JSON_FILE)
+          LOW=$(jq '[.[] | select(.rule.severity == "low")] | length' $JSON_FILE)
+          NOTE=$(jq '[.[] | select(.rule.severity == "note")] | length' $JSON_FILE)
+          TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW + NOTE))
+
+          cat > $REPORT_FILE << EOF
+          # 🔒 Reporte de Análisis de Seguridad — CodeQL
+          
+          > **Rama:** \`${{ github.event.workflow_run.head_branch }}\`  
+          > **Commit:** [\`${SHA:0:7}\`](https://github.com/$REPO/commit/$SHA)  
+          > **Workflow original:** [Ver ejecución]($RUN_URL)
+          
+          ---
+          
+          ## 📊 Resumen Ejecutivo
+          
+          | Métrica | Valor |
+          |---------|-------|
+          | **Total vulnerabilidades** | $TOTAL |
+          | 🔴 Críticas | $CRITICAL |
+          | 🟠 Altas | $HIGH |
+          | 🟡 Medias | $MEDIUM |
+          | 🔵 Bajas | $LOW |
+          | ⚪ Notas | $NOTE |
+          
+          EOF
+
+          # Función para generar tabla por lenguaje
+          generate_table() {
+            local lang_filter="$1"
+            local lang_name="$2"
+            
+            local filtered=$(jq --arg lang "$lang_filter" '[.[] | select(.tool.name | ascii_downcase | contains($lang))]' $JSON_FILE)
+            local count=$(echo "$filtered" | jq 'length')
+            
+            if [ "$count" -eq 0 ]; then
+              return
+            fi
+
+            echo "" >> $REPORT_FILE
+            echo "## 🛡️ Hallazgos — $lang_name ($count)" >> $REPORT_FILE
+            echo "" >> $REPORT_FILE
+            echo "| Severidad | Regla | Descripción | Archivo | Línea | Alerta |" >> $REPORT_FILE
+            echo "|-----------|-------|-------------|---------|-------|--------|" >> $REPORT_FILE
+
+            echo "$filtered" | jq -r --arg repo "$REPO" '
+              .[] |
+              "| " + (.rule.severity // "unknown" | ascii_upcase) +
+              " | " + (.rule.id // "N/A") +
+              " | " + (.rule.description // "Sin descripción") +
+              " | `" + (.most_recent_instance.location.path // "N/A") + "`" +
+              " | " + (.most_recent_instance.location.start_line // "N/A" | tostring) +
+              " | [Ver](https://github.com/" + $repo + "/security/code-scanning/" + (.number | tostring) + ")" +
+              " |"
+            ' >> $REPORT_FILE
+          }
+
+          generate_table "java" "Java (Spring Boot)"
+          generate_table "javascript" "JavaScript / TypeScript (NestJS)"
+
+          # Agregar sección de recomendación
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "" >> $REPORT_FILE
+            echo "---" >> $REPORT_FILE
+            echo "" >> $REPORT_FILE
+            echo "## ⚠️ Acción Requerida" >> $REPORT_FILE
+            echo "" >> $REPORT_FILE
+            echo "Se detectaron vulnerabilidades de severidad **CRÍTICA** o **ALTA**. Se recomienda:" >> $REPORT_FILE
+            echo "" >> $REPORT_FILE
+            echo "1. Revisar los archivos listados en la tabla superior." >> $REPORT_FILE
+            echo "2. Aplicar los fixes sugeridos antes de mergear a \`main\`." >> $REPORT_FILE
+            echo "3. Re-ejecutar el análisis para validar la corrección." >> $REPORT_FILE
+          fi
+
+          cat $REPORT_FILE
+          cp $REPORT_FILE $GITHUB_WORKSPACE/CODEQL_REPORT.md
+
+      - name: Subir reporte como artifact
+        if: steps.alerts.outputs.has_alerts == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-security-report
+          path: CODEQL_REPORT.md
+          retention-days: 30
+
+      - name: Comentar en PR (si aplica)
+        if: ${{ steps.alerts.outputs.has_alerts == 'true' && github.event.workflow_run.event == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Obtener el número del PR desde el workflow_run
+          PR_NUMBER=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/pulls?head=${{ github.event.workflow_run.head_branch }}&state=open" | \
+            jq '.[0].number // empty')
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No se encontró PR abierto para esta rama."
+            exit 0
+          fi
+
+          TOTAL=${{ steps.alerts.outputs.count }}
+          REPORT_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          BODY="## 🔒 Reporte de Seguridad — CodeQL
+
+          Se completó el análisis de seguridad y se encontraron **$TOTAL vulnerabilidad(es)**.
+
+          📄 **Reporte completo:** [Descargar artifact]($REPORT_URL)
+
+          > ⚠️ Si hay vulnerabilidades críticas o altas, el merge puede estar bloqueado por la protección de rama."
+
+          curl -s -X POST \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" \
+            -d "{\"body\": $(echo "$BODY" | jq -s -R .)}"
+
+      - name: Publicar resumen en GitHub Step Summary
+        if: always()
+        run: |
+          if [ "${{ steps.alerts.outputs.has_alerts }}" == "true" ]; then
+            TOTAL=${{ steps.alerts.outputs.count }}
+            echo "## 🔒 Resultados CodeQL" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Se encontraron **$TOTAL** vulnerabilidad(es) abiertas." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "📄 Reporte detallado disponible en el artifact: \`codeql-security-report\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ✅ CodeQL — Sin vulnerabilidades" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No se detectaron vulnerabilidades abiertas en este análisis." >> $GITHUB_STEP_SUMMARY
+          fi
